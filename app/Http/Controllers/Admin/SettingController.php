@@ -109,20 +109,13 @@ class SettingController extends Controller
             'port' => $request->mail_port,
             'encryption' => $request->mail_encryption,
             'username' => $request->mail_username,
-            'password' => $request->mail_password ? $request->mail_password : config('mail.password', ''),
-            'timeout' => null,
-            'auth_mode' => null,
+            'password' => $request->mail_password ? $request->mail_password : Crypt::decrypt(config('mail.password', '')),
         ]]);
         config(['mail.from.address' => $request->mail_from_address]);
         config(['mail.from.name' => $request->mail_from_name]);
 
-        $email = Auth::user()->email;
         try {
-            Mail::raw('If you read this, your email is working!', function ($message) use ($email) {
-                $message->to($email);
-                $message->subject('Test Email');
-                $message->from(config('mail.username'), config('mail.from.name'));
-            });
+            \Illuminate\Support\Facades\Mail::to(auth()->user())->send(new \App\Mail\Test);
         } catch (\Exception $e) {
             // Return json response
             return response()->json(['error' => $e->getMessage()], 500);
@@ -133,10 +126,12 @@ class SettingController extends Controller
 
     public function login(Request $request)
     {
-        Setting::updateOrCreate(['key' => 'discord_client_id'], ['value' => $request->discord_client_id]);
-        Setting::updateOrCreate(['key' => 'discord_client_secret'], ['value' => $request->discord_client_secret]);
         Setting::updateOrCreate(['key' => 'discord_enabled'], ['value' => $request->discord_enabled]);
-
+        Setting::updateOrCreate(['key' => 'google_enabled'], ['value' => $request->google_enabled]);
+        Setting::updateOrCreate(['key' => 'github_enabled'], ['value' => $request->github_enabled]);
+        foreach ($request->except(['_token']) as $key => $value) {
+            Setting::updateOrCreate(['key' => $key], ['value' => $value]);
+        }
         return redirect('/admin/settings#login')->with('success', 'Settings updated successfully');
     }
 

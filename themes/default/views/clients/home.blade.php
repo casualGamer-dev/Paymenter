@@ -25,14 +25,14 @@
                     <img class="w-8 h-8 rounded-md" style="align-self: center; width: 2rem; height: 2rem;"
                         src="https://www.gravatar.com/avatar/{{ md5(Auth::user()->email) }}?s=200&d=mp" />
                     <div class="ml-4 text-lg font-semibold leading-7">
-                        Invoices
+                        {{ __('Invoices')}}
                     </div>
                 </div>
                 <div class="flex flex-col text-center items-center">
                     @foreach ($invoices as $invoice)
                         <a href='{{ route('clients.invoice.show', $invoice->id) }}'
                             class="text-blue-500 hover:text-blue-700">
-                            Invoice ID: {{ $invoice->id }}
+                            {{ __('Invoice ID')}}: {{ $invoice->id }}
                         </a>
                         <hr class="w-1/2">
                         <br>
@@ -54,12 +54,9 @@
                     <tbody class="w-full">
                         @if (count($services) > 0)
                             @foreach ($services as $service)
-                                @foreach ($service->products()->get() as $product)
+                                @foreach ($service->products()->get() as $product2)
                                     @php
-                                        $product = $product
-                                            ->product()
-                                            ->get()
-                                            ->first();
+                                        $product = $product2->product()->get()->first();
                                     @endphp
                                     @if ($product)
                                         <tr>
@@ -68,31 +65,27 @@
                                             </td>
                                             <td class="text-center dark:text-white dark:bg-darkmode2 p-3"
                                                 data-order="0.00">
-                                                @if ($product->price == 0)
-                                                    {{ __('Free') }}
-                                                @else
-                                                    {{ config('settings::currency_sign') }}{{ number_format((float) $product->price . '', 2, '.', '') }}
-                                                @endif
+                                                {{ $product->price() ? config('settings::currency_sign') . $product->price() : __('Free') }}
                                             </td>
                                             <td class="text-center dark:text-white dark:bg-darkmode2 p-3">
-                                                {{ date('l jS F Y', strtotime($service->expiry_date)) }}</td>
+                                                {{ $product2->expiry_date ? date('l jS F Y', strtotime($product2->expiry_date)) : __('Never') }}
                                             <td class="text-center dark:text-white dark:bg-darkmode2 p-3">
                                                 <div class="border border-gray-200">
-                                                    @if ($service->status === 'paid')
+                                                    @if ($product2->status === 'paid')
                                                         <span
                                                             class="label status status-active dark:bg-darkmode2 text-green-500">{{ __('Active') }}</span>
-                                                    @elseif($service->status === 'pending')
+                                                    @elseif($product2->status === 'pending')
                                                         <span
                                                             class="label status status-active dark:bg-darkmode2 text-orange-400">{{ __('Pending') }}</span>
-                                                    @elseif($service->status === 'cancelled')
+                                                    @elseif($product2->status === 'cancelled')
                                                         <span
                                                             class="label status status-active dark:bg-darkmode2 text-red-600">{{ __('Expired') }}</span>
-                                                    @elseif($service->status === 'suspended')
+                                                    @elseif($product2->status === 'suspended')
                                                         <span
                                                             class="label status status-active dark:bg-darkmode2 text-red-600">{{ __('Suspended') }}</span>
                                                     @else
                                                         <span
-                                                            class="label status status-active dark:bg-darkmode2 text-red-600">{{ $service->status }}</span>
+                                                            class="label status status-active dark:bg-darkmode2 text-red-600">{{ $product2->status }}</span>
                                                     @endif
                                                 </div>
                                             </td>
