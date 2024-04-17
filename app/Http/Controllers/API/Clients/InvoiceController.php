@@ -8,108 +8,93 @@ use App\Models\Invoice;
 use App\Models\Product;
 use Illuminate\Http\Request;
 use App\Helpers\ExtensionHelper;
-use App\Http\Controllers\Controller;
+use App\Http\Controllers\API\Controller;
+use App\Models\Extension;
 
 class InvoiceController extends Controller
 {
     /**
      * Get all invoices of current user.
+     * 
+     * @return \Illuminate\Http\JsonResponse
      */
     public function getInvoices(Request $request)
     {
         $user = $request->user();
 
-        if (!$user->tokenCan('invoice:read')) {
-            return response()->json([
-                'error' => 'You do not have permission to read invoices.',
-            ], 403);
-        }
-
-        $invoices = $user->invoices()->paginate(25);
-        return response()->json([
-            'invoices' => API::repaginate($invoices),
-        ], 200);
+        $invoices = $user->invoices()->where('credits', null)->paginate(25);
+        return $this->success('Invoices successfully retrieved.', API::repaginate($invoices));
     }
 
     /**
      * Get invoice by ID.
+     * 
+     * @return \Illuminate\Http\JsonResponse
      */
     public function getInvoice(Request $request, int $invoiceId)
     {
         $user = $request->user();
 
         if (!$user->tokenCan('invoice:read')) {
-            return response()->json([
-                'error' => 'You do not have permission to read invoices.',
-            ], 403);
+            return $this->error('You do not have permission to read invoices.', 403);
         }
 
         $invoice = Invoice::where('id', $invoiceId)->where('user_id', $user->id)->firstOrFail();
-        $order = Order::findOrFail($invoice->order_id);
 
-        $products = [];
-        foreach ($order->products()->get() as $product) {
-            $item = Product::where('id', $product->product_id)->first();
-            $item->quantity = $product['quantity'];
-            $products[] = $item;
-        }
-
-        return response()->json([
+        return $this->success('Invoice successfully retrieved.', [
             'invoice' => $invoice,
-            'products' => $products,
-        ], 200);
+        ]);
     }
 
     /**
      * Pay invoice by ID.
+     * 
+     * @return \Illuminate\Http\JsonResponse
      */
     public function payInvoice(Request $request, int $invoiceId)
     {
         $user = $request->user();
 
-        if (!$user->tokenCan('invoice:update')) {
-            return response()->json([
-                'error' => 'You do not have permission to update invoices.',
-            ], 403);
-        }
+        $request->validate([
+            'payment_method' => 'required|string',
+        ]);
 
         $invoice = Invoice::where('id', $invoiceId)->where('user_id', $user->id)->firstOrFail();
-        $order = Order::findOrFail($invoice->order_id);
 
-        if ($invoice->status != 'unpaid') {
-            return response()->json([
-                'error' => 'Invoice is already paid',
-            ], 400);
+        if ($invoice->status == 'paid') {
+            return $this->error('Invoice already paid.', 400);
         }
 
-        $products = [];
-        $total = $invoice->total;
-        foreach ($order->products()->get() as $product) {
-            $item = json_decode(Product::where('id', $product->product_id)->first());
-            $item->quantity = $product['quantity'];
-            $item->price = $product['price'];
-            if (isset($product['config'])) {
-                $item->config = $product['config'];
+        $productsAndTotal = $invoice->getItemsWithProducts();
+        $total = $productsAndTotal->total;
+        $products = $productsAndTotal->products;
+        $payment_method = $request->get('payment_method');
+
+        if ($payment_method == 'credits') {
+            if ($user->credits < $total) {
+                return $this->error('You do not have enough credits.', 400);
             }
-            $products[] = $item;
-            $total += ($item->price * $item->quantity);
+            $user->credits = $user->credits - $total;
+            $user->save();
+            $invoice->status = 'paid';
+            $invoice->save();
+            return $this->success('Invoice successfully paid.', [
+                'invoice' => $invoice,
+            ]);
         }
 
-        if ($request->get('payment_method')) {
-            $payment_method = $request->get('payment_method');
-            $payment_method = ExtensionHelper::getPaymentMethod($payment_method, $total, $products, $invoice->id);
+        $payment_method = Extension::where('type', 'gateway')->where('name', $payment_method)->first();
 
-            if ($payment_method) {
-                return redirect($payment_method);
-            }
-
-            return response()->json([
-                'error' => 'Payment method not found',
-            ], 404);
+        if (!$payment_method || !$payment_method->enabled) {
+            return $this->error('Payment method is not enabled.', 400);
         }
 
-        return response()->json([
-            'error' => 'Payment method not found',
-        ], 404);
+        $payment_method = ExtensionHelper::getPaymentMethod($payment_method->id, $total, $products, $invoice->id);
+
+        if ($payment_method) {
+            return redirect($payment_method);
+        }
+
+        return $this->error('Payment method not found.', 404);
     }
 }

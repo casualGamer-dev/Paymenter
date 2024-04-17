@@ -14,15 +14,37 @@ class Extension extends Model
         'enabled',
         'type',
         'display_name',
+        'update_available'
     ];
 
     public function getConfig()
     {
-        return $this->hasMany(ExtensionSetting::class, 'extension', 'id');
+        return $this->hasMany(ExtensionSetting::class);
     }
 
     public function getServer()
     {
         return $this->hasMany(ProductSetting::class, 'extension', 'id');
+    }
+
+    public function getPathAttribute()
+    {
+        return app_path('Extensions/' . ucfirst($this->type) . 's' . '/' . $this->name);
+    }
+
+    public function getNamespaceAttribute()
+    {
+        return 'App\\Extensions\\' . ucfirst($this->type) . 's' . '\\' . $this->name . '\\' . $this->name;
+    }
+
+    public function getVersionAttribute()
+    {
+        $module = $this->namespace;
+        try {
+            $module = new $module($this);
+            return $module->getMetadata()['version'];
+        } catch (\Throwable $th) {
+            return false;
+        }
     }
 }

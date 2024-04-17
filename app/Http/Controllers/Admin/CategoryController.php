@@ -4,53 +4,135 @@ namespace App\Http\Controllers\Admin;
 
 use App\Models\Category;
 use App\Http\Controllers\Controller;
+use Illuminate\Http\Request;
+use Illuminate\Http\RedirectResponse;
+use Illuminate\Support\Facades\Validator;
+use Illuminate\Validation\ValidationException;
+use Illuminate\View\View;
 
 class CategoryController extends Controller
 {
-    public function index()
+
+    /**
+     * Display the categories
+     *
+     * @return View
+     */
+    public function index(): View
+    {
+        return view('admin.categories.index');
+    }
+
+    /**
+     * Display the create form
+     *
+     * @return View
+     */
+    public function create(): View
     {
         $categories = Category::all();
-
-        return view('admin.categories.index', compact('categories'));
+        return view('admin.categories.create', compact('categories'));
     }
 
-    public function create()
+    /**
+     * Store a new announcement
+     *
+     * @return RedirectResponse
+     */
+    public function store(Request $request): RedirectResponse
     {
-        return view('admin.categories.create');
-    }
-
-    public function store()
-    {
-        $data = request()->validate([
+        $request->validate([
             'name' => 'required',
             'description' => 'required',
-            'slug' => 'required',
+            'slug' => 'required|unique:categories,slug',
+            'parent_id' => 'nullable|exists:categories,id',
+            'image' => 'nullable|image',
         ]);
 
-        Category::create($data);
+        if ($request->hasFile('image')) {
+            $request->validate([
+                'image' => 'image|mimes:jpeg,png,jpg,gif,svg|max:5242',
+            ]);
+            // Public
+            $request->image->store('categories', 'public');
+
+        }
+
+        Category::create([
+            'name' => $request['name'],
+            'description' => $request['description'],
+            'slug' => $request['slug'],
+            'category_id' => $request['parent_id'],
+            'image' => $request->image ? $request->image->hashName() : null,
+        ]);
+        
 
         return redirect()->route('admin.categories');
     }
 
-    public function edit(Category $category)
+    /**
+     * Display edit form
+     *
+     * @param Category $category
+     * @return View
+     */
+    public function edit(Category $category): View
     {
-        return view('admin.categories.edit', compact('category'));
+        $categories = Category::where('id', '!=', $category->id)->get();
+        return view('admin.categories.edit', compact('category', 'categories'));
     }
 
-    public function update(Category $category)
+    /**
+     * Update the category
+     *
+     * @param Category $category
+     * @param Request $request
+     * @return RedirectResponse
+     * @throws ValidationException
+     */
+    public function update(Category $category, Request $request): RedirectResponse
     {
-        $data = request()->validate([
+        $request->validate([
             'name' => 'required',
             'description' => 'required',
-            'slug' => 'required',
+            'slug' => 'required|unique:categories,slug,' . $category->id,
+            'parent_id' => 'nullable|exists:categories,id',
+            'image' => 'nullable|image',
+            'remove_image' => 'nullable',
         ]);
 
-        $category->update($data);
+        if ($request->hasFile('image')) {
+            $request->validate([
+                'image' => 'image|mimes:jpeg,png,jpg,gif,svg|max:5242',
+            ]);
+            // Public
+            $request->image->store('categories', 'public');
 
-        return redirect()->route('admin.categories');
+        }
+
+        if ($request->remove_image == 'on') {
+            $category->image = null;
+        } else {
+            $category->image = $request->image ? $request->image->hashName() : $category->image;
+        }
+
+        $category->update([
+            'name' => $request['name'],
+            'description' => $request['description'],
+            'slug' => $request['slug'],
+            'category_id' => $request['parent_id'],
+        ]);
+
+        return redirect()->route('admin.categories.edit', $category);
     }
 
-    public function destroy(Category $category)
+    /**
+     * Delete the category
+     *
+     * @param Category $category
+     * @return RedirectResponse
+     */
+    public function destroy(Category $category): RedirectResponse
     {
         $category->delete();
 

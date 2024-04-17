@@ -2,32 +2,25 @@
     <x-slot name="title">
         {{ __('Settings') }}
     </x-slot>
-
-
-    <div class="container h-full px-6 py-10 mx-auto">
-        <div class="w-full h-full rounded ">
-            <div class="p-6 mx-auto bg-white border-b border-gray-200 shadow-xl max-w-7xl sm:px-6 lg:px-8 dark:bg-darkmode2 dark:border-darkmode"
-                id="tabs">
-                <div class="flex flex-row overflow-x-auto lg:flex-wrap lg:space-x-1">
-                    @foreach ($tabs as $tab)
-                        <div class="flex-none tabs">
-                            <a href="#{{ str_replace('admin.settings.settings.', '', $tab) }}"
-                                class="inline-flex justify-center w-full p-4 px-2 py-2 text-xs font-bold text-gray-900 uppercase border-b-2 dark:text-darkmodetext dark:hover:bg-darkbutton border-y-transparent hover:border-logo hover:text-logo"
-                                id="{{ str_replace('admin.settings.settings.', '', $tab) }}">
-                                {{ str_replace('admin.settings.settings.', '', $tab) }}
-                            </a>
-                        </div>
-                    @endforeach
+    <div id="tabs">
+        <div class="flex flex-row overflow-x-auto lg:flex-wrap lg:space-x-1">
+            @foreach ($tabs as $tab)
+                <div class="flex-none tabs">
+                    <a href="#{{ str_replace('admin.settings.settings.', '', $tab) }}"
+                        class="inline-flex justify-center w-full p-4 px-2 py-2 text-xs font-bold text-gray-900 uppercase border-b-2 dark:text-darkmodetext dark:hover:bg-darkbutton border-y-transparent hover:border-logo hover:text-logo"
+                        id="{{ str_replace('admin.settings.settings.', '', $tab) }}">
+                        {{ __(str_replace('admin.settings.settings.', '', $tab)) }}
+                    </a>
                 </div>
-                <!-- Tab panes -->
-                <div class="tab-content">
-                    @foreach ($tabs as $tab)
-                        @include($tab)
-                    @endforeach
-                </div>
-                <br>
-            </div>
+            @endforeach
         </div>
+        <!-- Tab panes -->
+        <div class="tab-content">
+            @foreach ($tabs as $tab)
+                @include($tab)
+            @endforeach
+        </div>
+        <br>
     </div>
     <script>
         $(document).ready(function() {
@@ -66,7 +59,7 @@
             document.execCommand("copy");
             $temp.remove();
 
-            // Display on the left side of the screen 
+            // Display on the left side of the screen
             var message = "Copied to clipboard";
             document.getElementById("message").innerHTML = message;
             var x = document.getElementById("toast-success");

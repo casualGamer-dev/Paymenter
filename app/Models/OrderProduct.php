@@ -19,6 +19,10 @@ class OrderProduct extends Model
         'status',
     ];
 
+    protected $casts = [
+        'expiry_date' => 'date',
+    ];
+
     public function config()
     {
         return $this->hasMany(OrderProductConfig::class, 'order_product_id', 'id');
@@ -36,12 +40,57 @@ class OrderProduct extends Model
 
     public function invoices()
     {
-        return $this->hasMany(InvoiceItem::class, 'product_id', 'id');
+        return $this->hasOne(InvoiceItem::class, 'product_id', 'id')->get()->first() ? $this->hasOne(InvoiceItem::class, 'product_id', 'id')->get()->first()->invoice() : new Invoice();
+    }
+
+    public function lastInvoice()
+    {
+        $lastInvoiceItem = $this->hasOne(InvoiceItem::class, 'product_id', 'id')
+            ->orderByDesc('id')
+            ->first();
+
+        return $lastInvoiceItem->invoice;
+    }
+
+    public function cancellation()
+    {
+        return $this->hasOne(Cancellation::class, 'order_product_id', 'id');
+    }
+
+    public function availableUpgrades()
+    {
+        $upgrades = $this->product->upgrades->pluck('upgrade_product_id')->toArray();
+        return Product::whereIn('id', $upgrades)->get()->filter(function ($product) {
+            return $product->prices->{$this->billing_cycle};
+        });
+    }
+
+    public function getUpgradableAttribute()
+    {
+        return $this->availableUpgrades()->count() > 0 && $this->status == 'paid';
+        // return $this->availableUpgrades()->count() > 0 || $this->product->upgrade_configurable_options;
+    }
+
+    public function upgrade()
+    {
+        return $this->hasOne(OrderProductUpgrade::class, 'order_product_id', 'id');
+    }
+
+    public function getCancellableAttribute()
+    {
+        return $this->status == 'paid' && $this->expiry_date > now();
+    }
+
+    public function getInvoices()
+    {
+        return $this->hasManyThrough(Invoice::class, InvoiceItem::class, 'product_id', 'id', 'id', 'invoice_id');
     }
 
     public function getOpenInvoices()
     {
-        return $this->invoices()->get()->filter(function ($invoice) {
+        return $this->getInvoices->filter(function ($invoice) {
+            if ($invoice->total() == 0)
+                return false;
             return $invoice->status == 'pending';
         });
     }

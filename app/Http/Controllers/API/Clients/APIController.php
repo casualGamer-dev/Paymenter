@@ -4,7 +4,7 @@ namespace App\Http\Controllers\API\Clients;
 
 use App\Classes\API;
 use Illuminate\Http\Request;
-use App\Http\Controllers\Controller;
+use App\Http\Controllers\API\Controller;
 
 class APIController extends Controller
 {
@@ -13,11 +13,11 @@ class APIController extends Controller
      */
     public function getPermissions()
     {
-        return response()->json([
+        return $this->success('Success', [
             'permissions' => API::$permissions,
-        ], 200);
+        ]);
     }
-    
+
     /**
      * Create API token.
      */
@@ -26,14 +26,23 @@ class APIController extends Controller
         $user = $request->user();
         $body = $request->json()->all();
 
-        if (!$user->tokenCan('api:create')) {
-            return response()->json([
-                'error' => 'You do not have permission to create API tokens.',
-            ], 403);
-        }
-
         return response()->json([
             'token' => $user->createToken($body['tokenName'], $body['permissions'])->plainTextToken,
         ], 201);
+    }
+
+
+    /**
+     * Get authenticated user.
+     * 
+     * @return \Illuminate\Http\JsonResponse
+     */
+    public function getMe(Request $request)
+    {
+        $user = $request->user();
+
+        return $this->success('Success', [
+            'user' => $user,
+        ]);
     }
 }

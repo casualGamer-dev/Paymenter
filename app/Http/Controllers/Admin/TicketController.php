@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers\Admin;
 
+use App\Helpers\FileUploadHelper;
+use App\Helpers\NotificationHelper;
 use App\Models\User;
 use App\Models\Ticket;
 use Illuminate\Http\Request;
@@ -12,10 +14,7 @@ class TicketController extends Controller
 {
     public function index()
     {
-        $tickets = Ticket::where('status', '!=', 'closed')->get();
-        $closed = Ticket::where('status', 'closed')->get();
-
-        return view('admin.tickets.index', compact('tickets', 'closed'));
+        return view('admin.tickets.index');
     }
 
     public function create()
@@ -38,7 +37,7 @@ class TicketController extends Controller
             'title' => $request->get('title'),
             'status' => 'open',
             'priority' => $request->priority,
-            'client' => $request->get('user'),
+            'user_id' => $request->get('user'),
         ]);
         $ticket->save();
 
@@ -47,6 +46,7 @@ class TicketController extends Controller
             'message' => $request->get('description'),
             'user_id' => auth()->user()->id,
         ]);
+        NotificationHelper::sendNewTicketNotification($ticket, User::where('id', $ticket->user_id)->first());
 
         return redirect()->route('admin.tickets.show', $ticket)->with('success', 'Ticket has been created');
     }
@@ -60,25 +60,46 @@ class TicketController extends Controller
     {
         $request->validate([
             'message' => 'required',
+            'attachments' => 'nullable|array',
         ]);
+
+        if ($ticket->status == 'closed') {
+            return redirect()->route('admin.tickets.show', $ticket)->with('error', 'Ticket is closed');
+        }
 
         $ticket->status = 'replied';
         $ticket->save();
-        $ticket->messages()->create([
+        $ticketMessage = $ticket->messages()->create([
             'user_id' => auth()->user()->id,
             'message' => $request->get('message'),
         ]);
 
+        if($request->hasFile('attachments')) {
+            foreach($request->file('attachments') as $file) {
+                FileUploadHelper::upload($file, $ticketMessage, TicketMessage::class);
+            }
+        }
+
+        NotificationHelper::sendNewTicketMessageNotification($ticket, User::where('id', $ticket->user_id)->first());
+
         return redirect()->route('admin.tickets.show', $ticket)->with('success', 'Message has been sent');
     }
 
-    public function status(Request $request, Ticket $ticket)
+    public function update(Request $request, Ticket $ticket)
     {
         $request->validate([
+            'title' => 'required|string',
             'status' => 'required|in:open,closed',
+            'priority' => 'required|in:low,medium,high',
+            'assigned_to' => 'nullable|exists:users,id',
+            'product_id' => 'nullable|exists:order_products,id',
         ]);
 
+        $ticket->title = $request->get('title');
         $ticket->status = $request->get('status');
+        $ticket->priority = $request->get('priority');
+        $ticket->assigned_to = $request->get('assigned_to');
+        $ticket->order_id = $request->get('product_id');
         $ticket->save();
 
         return redirect()->route('admin.tickets.show', $ticket)->with('success', 'Ticket status has been updated');

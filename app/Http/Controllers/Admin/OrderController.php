@@ -6,15 +6,14 @@ use App\Models\Order;
 use App\Helpers\ExtensionHelper;
 use App\Http\Controllers\Controller;
 use App\Models\OrderProduct;
+use App\Models\Product;
 use Illuminate\Http\Request;
 
 class OrderController extends Controller
 {
     public function index()
     {
-        $orders = Order::all();
-
-        return view('admin.orders.index', compact('orders'));
+        return view('admin.orders.index');
     }
 
     public function show(Order $order)
@@ -30,15 +29,26 @@ class OrderController extends Controller
         return view('admin.orders.show', compact('order', 'products'));
     }
 
+    public function destroyProduct(Order $order, OrderProduct $product)
+    {
+        ExtensionHelper::terminateServer($product);
+        $product->delete();
+
+        return redirect()->route('admin.orders.show', $order)->with('success', 'Product deleted');
+
+    }
+
     public function changeProduct(Order $order, OrderProduct $product, Request $request)
     {
         $request->validate([
             'price' => 'required|numeric',
             'quantity' => 'required|numeric',
+            'expiry_date' => 'required|date',
         ]);
 
         $product->price = $request->input('price');
         $product->quantity = $request->input('quantity');
+        $product->expiry_date = $request->input('expiry_date');
         $product->save();
 
         return redirect()->route('admin.orders.show', $order);
